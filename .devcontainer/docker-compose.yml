@@ -6,8 +6,8 @@ services:
     ports:
       - "8069:8069"
     volumes:
-      - ../:/workspace
-      - ../custom:/mnt/extra-addons
+      - /workspaces/${localWorkspaceFolderBasename}:/mnt/extra-addons/core
+      - ./custom:/mnt/extra-addons/custom
   db:
     image: postgres:15
     environment:
