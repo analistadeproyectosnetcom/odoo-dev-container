@@ -2,7 +2,7 @@
     "name": "Odoo Dev Container",
     "dockerComposeFile": "docker-compose.yml",
     "service": "odoo",
-    "workspaceFolder": "/workspace/custom",
+    "workspaceFolder": "/workspaces/${localWorkspaceFolderBasename}",
     "remoteUser": "root",
     "forwardPorts": [8069],
     "postCreateCommand": "[ \"$CODESPACES\" = \"true\" ] && ln -s /workspaces/${localWorkspaceFolderBasename}/.vscode /workspace/custom/.vscode || ([ -z \"$CODESPACES\" ] && ln -s /workspace/.vscode /workspace/custom/.vscode || true)",
