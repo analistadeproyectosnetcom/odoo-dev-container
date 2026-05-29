@@ -1,39 +1,34 @@
-name: Build and Push Odoo Dev Container
+name: Build and Push Odoo 17 Dev Container
 
 on:
   push:
     paths:
       - '.devcontainer/URL.conf'
+      - '.devcontainer/Dockerfile'
+      - '.devcontainer/entrypoint.sh'
+      - '.devcontainer/odoo.conf'
+      - '.devcontainer/wait-for-psql.py'
+      - '.github/workflows/docker-publish.yml'
   workflow_dispatch:
 
 env:
-  # Use docker.io for Docker Hub if empty
   REGISTRY: ghcr.io
-
 
 jobs:
   build:
-
     runs-on: ubuntu-latest
     permissions:
       contents: read
       packages: write
-      # This is used to complete the identity challenge
-      # with sigstore/fulcio when running outside of PRs.
       id-token: write
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      # Set up BuildKit Docker container builder to be able to build
-      # multi-platform images and export cache
-      # https://github.com/docker/setup-buildx-action
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
-      # Login against a Docker registry except on PR
-      # https://github.com/docker/login-action
       - name: Log into registry ${{ env.REGISTRY }}
         if: github.event_name != 'pull_request'
         uses: docker/login-action@v3
@@ -42,46 +37,54 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      # Download .deb package with curl from the provided URL in the ./devcontainer/URL.txt file
+      # Download the exact .deb pointed to by URL.conf (must be an Odoo 17 URL)
       - name: Download odoo.deb package
         if: github.event_name != 'pull_request'
         run: |
-          curl -sSL -o .devcontainer/odoo.deb $(cat .devcontainer/URL.conf)
+          ODOO_URL=$(cat .devcontainer/URL.conf | tr -d '[:space:]')
+          echo "Downloading Odoo .deb from: ${ODOO_URL}"
+          curl -sSL -o .devcontainer/odoo.deb "${ODOO_URL}"
 
-      # Set environmet variables based on the downloaded .deb package version number
-      - name: Set Odoo version environment variable
+      # Read the actual version baked into the .deb and fail-fast if it is not 17.x
+      - name: Verify Odoo version is 17.x and set env vars
         if: github.event_name != 'pull_request'
         run: |
-          export ODOO_DEB_VERSION=$(dpkg-deb -f .devcontainer/odoo.deb version)
+          ODOO_DEB_VERSION=$(dpkg-deb -f .devcontainer/odoo.deb Version)
           echo "ODOO_DEB_VERSION=${ODOO_DEB_VERSION}" >> $GITHUB_ENV
-          echo "ODOO_MAIN_VERSION=${ODOO_DEB_VERSION:0:2}" >> $GITHUB_ENV
-          echo "ODOO_TYPE=$(echo $ODOO_DEB_VERSION | grep -q 'e' && echo 'enterprise' || echo 'community')" >> $GITHUB_ENV
 
-      # Use the tag 'latest' only if the downloaded .deb package is for the Enterprise version (Enterprise download URL only provides the latest build)
-      # or if the download URL includes the word 'latest' (for Community version you can use either latest or any specific date)
+          MAJOR=$(echo "${ODOO_DEB_VERSION}" | cut -d'.' -f1)
+          if [ "${MAJOR}" != "17" ]; then
+            echo "ERROR: URL.conf points to Odoo ${MAJOR}.x, but this branch is v17."
+            echo "       Update URL.conf to use an Odoo 17 nightly URL."
+            exit 1
+          fi
+          echo "Version check passed: ${ODOO_DEB_VERSION}"
+
+          if echo "${ODOO_DEB_VERSION}" | grep -q 'e'; then
+            echo "ODOO_TYPE=enterprise" >> $GITHUB_ENV
+          else
+            echo "ODOO_TYPE=community" >> $GITHUB_ENV
+          fi
+
       - name: Determine if latest tag should be used
         if: github.event_name != 'pull_request'
         run: |
-          if [[ "${{ env.ODOO_TYPE }}" == "enterprise" ]] || grep -q 'latest' .devcontainer/URL.conf; then
+          if grep -q 'latest' .devcontainer/URL.conf; then
             echo "IS_LATEST=true" >> $GITHUB_ENV
           else
             echo "IS_LATEST=false" >> $GITHUB_ENV
           fi
 
-      # Extract metadata (tags, labels) for Docker
-      # https://github.com/docker/metadata-action
       - name: Extract Docker metadata
         if: ${{ github.event_name != 'pull_request' }}
         id: meta
         uses: docker/metadata-action@v5
         with:
-          images: ${{ env.REGISTRY }}/${{ github.actor }}/odoo-v${{ env.ODOO_MAIN_VERSION }}-${{ env.ODOO_TYPE }}
+          images: ${{ env.REGISTRY }}/${{ github.actor }}/odoo-v17-${{ env.ODOO_TYPE }}
           tags: |
             type=raw,value=${{ env.ODOO_DEB_VERSION }}
             type=raw,value=latest,enable=${{ env.IS_LATEST }}
 
-      # Build and push Docker image with Buildx (don't push on PR)
-      # https://github.com/docker/build-push-action
       - name: Build and push Docker image
         if: ${{ github.event_name != 'pull_request' }}
         id: build-and-push
