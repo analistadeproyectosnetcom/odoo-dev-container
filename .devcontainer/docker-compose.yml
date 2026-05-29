@@ -1,6 +1,13 @@
 services:
   odoo:
-    image: "ghcr.io/m3r3nix/odoo-v17-community:latest"
+    # ── PINNED IMAGE ──────────────────────────────────────────────────────────
+    # This image is built by the GitHub Actions workflow in this repository
+    # from the v17 branch. It contains Odoo 17 Community installed from the
+    # official Odoo nightly .deb (https://nightly.odoo.com/17.0/nightly/deb/).
+    # Do NOT change this to a generic "odoo:latest" or "odoo" tag — those
+    # resolve to the newest Odoo release and will break the version pin.
+    image: "ghcr.io/${GITHUB_REPOSITORY_OWNER:-m3r3nix}/odoo-v17-community:latest"
+    # ─────────────────────────────────────────────────────────────────────────
     depends_on:
       - db
     ports:
@@ -9,6 +16,8 @@ services:
       - /workspaces/${localWorkspaceFolderBasename}:/mnt/extra-addons/core
       - ./custom:/mnt/extra-addons/custom
   db:
+    # PostgreSQL 15 matches the version Odoo 17 is tested against upstream.
+    # Do NOT bump to pg16 or higher without verifying Odoo 17 compatibility.
     image: postgres:15
     environment:
       - POSTGRES_DB=postgres
