@@ -6,7 +6,7 @@ services:
     # official Odoo nightly .deb (https://nightly.odoo.com/17.0/nightly/deb/).
     # Do NOT change this to a generic "odoo:latest" or "odoo" tag — those
     # resolve to the newest Odoo release and will break the version pin.
-    image: "ghcr.io/${GITHUB_REPOSITORY_OWNER:-m3r3nix}/odoo-v17-community:latest"
+    image: "ghcr.io/analistadeproyectosnetcom/odoo-v17-community:latest"
     # ─────────────────────────────────────────────────────────────────────────
     depends_on:
       - db
