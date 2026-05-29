@@ -6,10 +6,16 @@ SHELL ["/bin/bash", "-xo", "pipefail", "-c"]
 # Generate locale C.UTF-8 for postgres and general locale data
 ENV LANG en_US.UTF-8
 
+# ── PIN THE ODOO VERSION HERE ─────────────────────────────────────────────────
+# All version-specific logic flows from this single variable.
+# Change ONLY this value if you need a different series (e.g. 16.0, 18.0).
+ENV ODOO_VERSION=17.0
+# ─────────────────────────────────────────────────────────────────────────────
+
 # Retrieve the target architecture to install the correct wkhtmltopdf package
 ARG TARGETARCH
 
-# Install some deps, lessc and less-plugin-clean-css, and wkhtmltopdf
+# Install system dependencies
 RUN apt-get update && \
     DEBIAN_FRONTEND=noninteractive \
     apt-get install -y --no-install-recommends \
@@ -62,17 +68,17 @@ RUN echo 'deb http://apt.postgresql.org/pub/repos/apt/ jammy-pgdg main' > /etc/a
     && gpgconf --kill all \
     && rm -rf "$GNUPGHOME" \
     && apt-get update  \
-    && apt-get install --no-install-recommends -y postgresql-client \
+    && apt-get install --no-install-recommends -y postgresql-client-15 \
     && rm -f /etc/apt/sources.list.d/pgdg.list \
     && rm -rf /var/lib/apt/lists/*
 
-# Install rtlcss (on Debian buster)
+# Install rtlcss
 RUN npm install -g rtlcss
 
-# Copy Odoo installation package downloaded in the previous GitHub Action step
+# Copy Odoo .deb pre-downloaded by the GitHub Actions workflow (from URL.conf)
 COPY ./odoo.deb /
 
-# Install Odoo
+# Install Odoo from the pinned .deb — version is enforced at build time by URL.conf
 RUN apt-get update \
     && apt-get -y install --no-install-recommends ./odoo.deb \
     && rm -rf /var/lib/apt/lists/* odoo.deb
@@ -82,7 +88,7 @@ COPY ./entrypoint.sh /
 COPY ./odoo.conf /etc/odoo/
 COPY ./wait-for-psql.py /usr/local/bin/wait-for-psql.py
 
-# Set permissions and Mount /var/lib/odoo to allow restoring filestore and /mnt/extra-addons for users addons
+# Set permissions and volumes
 RUN chown odoo /etc/odoo/odoo.conf \
     && mkdir -p /mnt/extra-addons \
     && chown -R odoo /mnt/extra-addons
